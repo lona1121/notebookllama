@@ -139,6 +139,43 @@ class OtelTracesSqlEngine:
             self._connect()
         return pd.read_sql_table(table_name=self.table_name, con=self._connection)
 
+    def to_parquet(
+        self,
+        output_path: str,
+        compression: Literal["snappy", "gzip", "brotli", "lz4", "zstd"] = "snappy",
+        partition_cols: Optional[List[str]] = None,
+    ) -> None:
+        """
+        Export traces to Parquet format for efficient storage and querying.
+
+        Args:
+            output_path: Path to save parquet file/directory
+            compression: Compression algorithm (default: snappy)
+            partition_cols: Columns to partition by (e.g., ['service_name', 'date'])
+
+        Examples:
+            >>> # Simple export
+            >>> engine.to_parquet("traces.parquet")
+
+            >>> # Partitioned by service
+            >>> engine.to_parquet("traces/", partition_cols=["service_name"])
+
+            >>> # With gzip compression
+            >>> engine.to_parquet("traces.parquet", compression="gzip")
+        """
+        df = self.to_pandas()
+
+        # Add date column for partitioning if needed
+        if partition_cols and "date" in partition_cols:
+            df["date"] = pd.to_datetime(df["start_time"], unit="us").dt.date
+
+        df.to_parquet(
+            output_path,
+            compression=compression,
+            partition_cols=partition_cols,
+            index=False,
+        )
+
     def disconnect(self) -> None:
         if not self._connection:
             raise ValueError("Engine was never connected!")
